@@ -1,0 +1,196 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import os
+import numpy as np
+from pydub import AudioSegment
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import audioCalculations
+from audioCalculations import estimate_rt60,calculate_rt60_difference,calculate_frequency_range,calculate_energy_decay_curve
+import MainStructure
+from MainStructure import process_audio_file
+
+# Function to display the waveform plot
+def display_waveform_plot(audio_data, sample_rate):
+    #new window for the waveform plot
+    waveform_window = tk.Toplevel()
+    waveform_window.title("Waveform Plot")
+
+    # Calculate time axis for waveform
+    time_axis = np.linspace(0, len(audio_data) / sample_rate, len(audio_data))
+
+    # Plot the waveform
+    plt.figure(figsize=(8, 4))
+    plt.plot(time_axis, audio_data, color='#A232D6')
+    plt.xlabel("Time (seconds)")
+    plt.ylabel("Amplitude")
+    plt.title("Audio Waveform")
+    plt.grid(True)
+
+    #Tkinter canvas to display the waveform plot
+    canvas = FigureCanvasTkAgg(plt.gcf(), master=waveform_window)
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+
+# Function to plot and display low frequency RT60 values
+def display_low_frequency_rt60(audio_data, sample_rate):
+    # Calculate the frequency range and RT60 values
+    frequencies = np.fft.fftfreq(len(audio_data), 1/sample_rate)
+    positive_freq_indices = np.where(frequencies > 0)[0]
+    magnitudes = np.abs(np.fft.fft(audio_data)[positive_freq_indices])
+
+    #index lowest frequency
+    min_freq_idx = positive_freq_indices[np.argmin(magnitudes)]
+
+    # Compute RT60 for the lowest frequency
+    rt60_lowest = estimate_rt60(audio_data[min_freq_idx:], sample_rate)
+
+    # Tkinter window for the RT60 plot
+    rt60_plot_window = tk.Toplevel()
+    rt60_plot_window.title("Low Frequency RT60 Plot")
+
+    # Create a figure and plot the RT60 values
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(frequencies[positive_freq_indices], magnitudes, color='#32D67C')  # Magnitude vs. Frequency
+    ax.axvline(x=frequencies[min_freq_idx], color='red', linestyle='--', label=f"Lowest Frequency (RT60: {rt60_lowest:.2f} seconds)")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Magnitude")
+    ax.set_title("Low Frequency RT60 Plot")
+    ax.grid(True)
+    ax.legend()
+
+    #Tkinter canvas to display the plot
+    canvas = FigureCanvasTkAgg(fig, master=rt60_plot_window)
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+
+# Function to plot and display high frequency RT60 values
+def display_high_frequency_rt60(audio_data, sample_rate):
+    #frequency range and RT60 values
+    frequencies = np.fft.fftfreq(len(audio_data), 1/sample_rate)
+    positive_freq_indices = np.where(frequencies > 0)[0]
+    magnitudes = np.abs(np.fft.fft(audio_data)[positive_freq_indices])
+
+    #index highest frequency
+    max_freq_idx = positive_freq_indices[np.argmax(magnitudes)]
+
+    # Compute RT60 for the highest frequency
+    rt60_highest = estimate_rt60(audio_data[max_freq_idx:], sample_rate)
+
+    #Tkinter window for the RT60 plot
+    rt60_plot_window = tk.Toplevel()
+    rt60_plot_window.title("High Frequency RT60 Plot")
+
+    # Create a figure and plot the RT60 values
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(frequencies[positive_freq_indices], magnitudes, color='#32CCD6')  # Magnitude vs. Frequency
+    ax.axvline(x=frequencies[max_freq_idx], color='blue', linestyle='--', label=f"Highest Frequency (RT60: {rt60_highest:.2f} seconds)")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Magnitude")
+    ax.set_title("High Frequency RT60 Plot")
+    ax.grid(True)
+    ax.legend()
+
+    #Tkinter canvas to display the plot
+    canvas = FigureCanvasTkAgg(fig, master=rt60_plot_window)
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+# Function to plot and display mid frequency RT60 values
+def display_mid_frequency_rt60(audio_data, sample_rate):
+    #frequency range and RT60 values
+    frequencies = np.fft.fftfreq(len(audio_data), 1/sample_rate)
+    positive_freq_indices = np.where(frequencies > 0)[0]
+    magnitudes = np.abs(np.fft.fft(audio_data)[positive_freq_indices])
+
+    #mid-range frequencies index
+    mid_freq_indices = positive_freq_indices[(frequencies[positive_freq_indices] >= 1000) & (frequencies[positive_freq_indices] <= 5000)]
+
+    #RT60 for the mid frequencies
+    rt60_mid = estimate_rt60(audio_data[mid_freq_indices], sample_rate)
+
+    #Tkinter window for the RT60 plot
+    rt60_plot_window = tk.Toplevel()
+    rt60_plot_window.title("Mid Frequency RT60 Plot")
+
+    # Create a figure and plot the RT60 values
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(frequencies[mid_freq_indices], magnitudes[mid_freq_indices], color='#E8BF69')  # Magnitude vs. Frequency
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Magnitude")
+    ax.set_title("Mid Frequency RT60 Plot")
+    ax.grid(True)
+    ax.text(0.5, 0.9, f"Mid Frequency (1000-5000 Hz)\nRT60: {rt60_mid:.2f} seconds", transform=ax.transAxes, ha='center')
+
+    # Tkinter canvas to display the plot
+    canvas = FigureCanvasTkAgg(fig, master=rt60_plot_window)
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+
+# Function to plot and display combined frequency RT60 values
+def display_combined_frequency_rt60(audio_data, sample_rate):
+    # frequency range and RT60 values for low, mid, and high
+    frequencies = np.fft.fftfreq(len(audio_data), 1/sample_rate)
+    positive_freq_indices = np.where(frequencies > 0)[0]
+    magnitudes = np.abs(np.fft.fft(audio_data)[positive_freq_indices])
+
+    # mid-range frequencies indexs
+    mid_freq_indices = positive_freq_indices[(frequencies[positive_freq_indices] >= 1000) & (frequencies[positive_freq_indices] <= 5000)]
+
+    # low freq index
+    min_freq_idx = positive_freq_indices[np.argmin(magnitudes)]
+
+    #high freq index
+    max_freq_idx = positive_freq_indices[np.argmax(magnitudes)]
+
+    # Compute RT60 for the lowest, mid, and highest frequencies
+    rt60_lowest = estimate_rt60(audio_data[min_freq_idx:], sample_rate)
+    rt60_highest = estimate_rt60(audio_data[max_freq_idx:], sample_rate)
+    rt60_mid = estimate_rt60(audio_data[mid_freq_indices], sample_rate)
+
+    #Tkinter window for the combined RT60 plot
+    combined_rt60_plot_window = tk.Toplevel()
+    combined_rt60_plot_window.title("Combined Frequency RT60 Plot")
+
+    # Create a figure and plot the RT60 values
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(frequencies[positive_freq_indices], magnitudes, color='#C3F678', label="All Frequencies")  # Magnitude vs. Frequency
+    ax.axvline(x=frequencies[min_freq_idx], color='red', linestyle='--', label=f"Lowest Frequency (RT60: {rt60_lowest:.2f} seconds)")
+    ax.axvline(x=frequencies[mid_freq_indices[0]], color='green', linestyle='--', label=f"Mid Frequency (RT60: {rt60_mid:.2f} seconds)")
+    ax.axvline(x=frequencies[max_freq_idx], color='blue', linestyle='--', label=f"Highest Frequency (RT60: {rt60_highest:.2f} seconds)")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Magnitude")
+    ax.set_title("Combined Frequency RT60 Plot")
+    ax.grid(True)
+    ax.legend()
+
+    #Tkinter canvas to display the plot
+    canvas = FigureCanvasTkAgg(fig, master=combined_rt60_plot_window)
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+# Function to display energy decay curve plot in a new window
+def display_energy_decay_curve_plot(audio_data, sample_rate):
+    # Calculate energy decay curve
+    time_vector, rt60 = calculate_energy_decay_curve(audio_data, sample_rate)
+
+    #Tkinter window for the energy decay curve plot
+    rt60_plot_window = tk.Toplevel()
+    rt60_plot_window.title("Energy Decay Curve (RT60) Plot")
+
+    # Plot the energy decay curve (RT60)
+    plt.figure(figsize=(10, 6))
+    plt.plot(time_vector, rt60)
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('RT60 (seconds)')
+    plt.title('Energy Decay Curve (RT60)')
+    plt.grid(True)
+    plt.tight_layout()
+
+    #Tkinter canvas to display the plot
+    canvas = FigureCanvasTkAgg(plt.gcf(), master=rt60_plot_window)
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)

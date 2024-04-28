@@ -1,0 +1,142 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import os
+import numpy as np
+from pydub import AudioSegment
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import audioCalculations
+import displayPlots
+from audioCalculations import calculate_rt60_difference, calculate_frequency_range, calculate_energy_decay_curve, estimate_rt60
+from displayPlots import display_waveform_plot,display_high_frequency_rt60,display_combined_frequency_rt60,display_low_frequency_rt60,display_mid_frequency_rt60,display_energy_decay_curve_plot
+#Custom Fonts for GUI
+custom_font1 = ('Helvetica', 15, 'bold')
+custom_font2 = ('Helvetica', 12)
+custom_font3 = ('Helvetica', 15)
+custom_font4 = ('Helvetica', 12, 'bold')
+
+
+#Process and select the audio file
+# Function to process audio file and display results
+def process_audio_file():
+    # Ask user to select an audio file
+    file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav")])
+
+    if not file_path:
+        messagebox.showerror("Error", "No file selected.")
+        return
+
+    # Display file name
+    filename_label.config(text=f"Selected File: {os.path.basename(file_path)}")
+
+    # Load audio using pydub
+    audio = AudioSegment.from_wav(file_path)
+    sample_rate = audio.frame_rate
+    audio_data = np.array(audio.get_array_of_samples())
+
+    try:
+        # Calculate the total length of the audio file in seconds
+        audio_length_seconds = len(audio_data) / sample_rate
+
+        # Estimate the RT60 of the audio for lowest and highest frequencies
+        rt60_lowest = estimate_rt60(audio_data, sample_rate)
+        rt60_highest = estimate_rt60(audio_data[::-1], sample_rate)  # Reverse audio for highest frequency
+
+        # Calculate the lowest and highest frequencies in the audio
+        min_frequency, max_frequency = calculate_frequency_range(audio_data, sample_rate)
+
+        # Calculate the RT60 difference needed to reduce to 0.5 seconds
+        target_rt60 = 0.5
+        rt60_difference = calculate_rt60_difference(rt60_lowest, target_rt60)
+
+        results_text = (
+        f"File Name: {os.path.basename(file_path)}\n"
+        f"File Length: {audio_length_seconds:.2f} seconds\n"
+        f"RT60 Difference (Lowest Frequency): {rt60_difference:.2f} seconds\n"
+        f"Lowest Frequency: {min_frequency:.2f} Hz (RT60: {rt60_lowest:.2f} seconds)\n"
+        f"Highest Frequency: {max_frequency:.2f} Hz (RT60: {rt60_highest:.2f} seconds)"
+        )
+
+        # Display the results with left-aligned text
+        resonance_label.config(text=results_text, anchor='w', justify='left')
+
+        # Update waveform_button command to pass audio_data and sample_rate to display_waveform_plot
+        waveform_button.config(command=lambda: display_waveform_plot(audio_data, sample_rate))
+
+        # Add button to display low frequency RT60 plot
+        low_freq_rt60_button.config(command=lambda: display_low_frequency_rt60(audio_data, sample_rate))
+
+        # Add button to display high frequency RT60 plot
+        high_freq_rt60_button.config(command=lambda: display_high_frequency_rt60(audio_data, sample_rate))
+
+        # Add button to display mid frequency RT60 plot
+        mid_freq_rt60_button.config(command=lambda: display_mid_frequency_rt60(audio_data, sample_rate))
+
+        # Add button to display combined frequency RT60 plot
+        combined_freq_rt60_button.config(command=lambda: display_combined_frequency_rt60(audio_data, sample_rate))
+
+        # Add button to display energy decay curve
+        energy_decay_button.config(command=lambda: display_energy_decay_curve_plot(audio_data, sample_rate))
+
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {str(e)}")
+
+
+
+
+# GUI Setup
+root = tk.Tk()
+root.title("CSProb&Sol Final")
+root.geometry('700x700')
+
+#project details
+label = tk.Label(root, text="CS Problem Solving and Solutions Final", font=custom_font1)
+label.pack(pady=20)
+
+label2 = tk.Label(root, text="Section 1: Group 2", font=custom_font2)
+label2.pack(pady=5)
+
+label4 = tk.Label(root, text="Please select a file of the .WAV format", font=custom_font2)
+label4.pack(pady=30)
+
+#button for selecting file
+select_button = tk.Button(root, text="Select Audio File", font=custom_font2, bg='#F85EF6',command=process_audio_file)
+select_button.pack(pady=20)
+
+filename_label = tk.Label(root, text="Selected File: None", font=custom_font2)
+filename_label.pack()
+
+resonance_label = tk.Label(root, text="Audio Processing Results:", font= custom_font2)
+resonance_label.pack(pady=10)
+
+#waveform button
+waveform_button = tk.Button(root, text="Waveform Plot", bg='#EEA2F7',command=lambda: None)
+waveform_button.pack(pady=10)  # Initially set command to a placeholder lambda function
+
+# Frame to hold the frequency buttons
+freq_buttons_frame = tk.Frame(root)
+freq_buttons_frame.pack(pady=10)
+
+# Button to display low frequency RT60 plot
+low_freq_rt60_button = tk.Button(freq_buttons_frame, text="Low Freq RT60 Plot", bg='#EEA2F7', command=lambda: None)
+low_freq_rt60_button.pack(side=tk.LEFT, padx=10)
+
+# Button to display mid frequency RT60 plot
+mid_freq_rt60_button = tk.Button(freq_buttons_frame, text="Mid Freq RT60 Plot", bg='#EEA2F7', command=lambda: None)
+mid_freq_rt60_button.pack(side=tk.LEFT, padx=10)
+
+# Button to display high frequency RT60 plot
+high_freq_rt60_button = tk.Button(freq_buttons_frame, text="High Freq RT60 Plot", bg='#EEA2F7', command=lambda: None)
+high_freq_rt60_button.pack(side=tk.LEFT, padx=10)
+
+
+# Button to display combined frequency RT60 plot
+combined_freq_rt60_button = tk.Button(root, text="Combined Frequency RT60 Plot", bg='#EEA2F7', command=lambda: None)
+combined_freq_rt60_button.pack(pady=10)  # Initially set command to a placeholder lambda function
+
+# Button to display an energy decay curve
+energy_decay_button = tk.Button(root, text="Energy Decay Curve", bg='#EEA2F7', command=lambda: None)
+energy_decay_button.pack(pady=10)
+
+# Run the GUI main loop
+root.mainloop()

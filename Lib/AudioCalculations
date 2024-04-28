@@ -1,0 +1,75 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import os
+import numpy as np
+from pydub import AudioSegment
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+# Function to calculate the difference in RT60
+def calculate_rt60_difference(rt60_original, target_rt60):
+    return rt60_original - target_rt60
+
+
+# Function to estimate the RT60 of an audio signal
+def estimate_rt60(audio_data, sample_rate):
+    # Calculate the energy decay curve
+    squared_audio = audio_data ** 2
+    edc = np.cumsum(squared_audio[::-1])[::-1]
+
+    # Normalize
+    edc_normalized = edc / np.max(edc)
+
+    # Find the time constant T60
+    t60_idx = np.argmax(edc_normalized < 10 ** (-6))
+
+    # Convert the index to time in seconds
+    t60 = t60_idx / sample_rate
+
+    # Calculate RT60
+    rt60 = 2 * t60
+
+    return rt60
+
+
+
+
+# Function to calculate the lowest and highest frequencies in an audio signal
+def calculate_frequency_range(audio_data, sample_rate):
+    fft_result = np.fft.fft(audio_data)
+
+    # Compute the frequency values
+    frequencies = np.fft.fftfreq(len(fft_result), 1 / sample_rate)
+
+    #positive frequencies indexs
+    positive_freq_indices = np.where(frequencies > 0)[0]
+
+    # Get the magnitudes for positive frequencies
+    magnitudes = np.abs(fft_result[positive_freq_indices])
+
+    #index of the lowest frequency
+    min_freq_idx = positive_freq_indices[np.argmin(magnitudes)]
+
+    # index of the highest frequency
+    max_freq_idx = positive_freq_indices[np.argmax(magnitudes)]
+
+    #frequencies in Hz
+    min_frequency = frequencies[min_freq_idx]
+    max_frequency = frequencies[max_freq_idx]
+
+    return min_frequency, max_frequency
+
+
+
+# Function to calculate the energy decay curve (RT60) from audio data
+def calculate_energy_decay_curve(audio_data, sample_rate):
+    # Compute amplitude envelope of the audio signal
+    envelope = np.abs(audio_data)
+
+    # Calculate the decay curve
+    rt60 = -60.0 / (sample_rate * np.log(envelope / np.max(envelope)))
+
+    # Time vector corresponding to each sample
+    time_vector = np.arange(len(audio_data)) / sample_rate
+
+    return time_vector, rt60
