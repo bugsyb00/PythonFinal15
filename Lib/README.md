@@ -1,8 +1,7 @@
 Python Final Project 15
-
 Made by Emily Moran and Marilyn Pamias
 
-Overview:
+# Overview:
 
     This projects goal is to create a virtual environment that allows for the
     analysis and graphing of a sound that is input into the program. The
@@ -12,13 +11,13 @@ Overview:
     frequency, high frequency, middle frequency, a combined graph and a
     spectograph.
 
-Purpose:
+## Purpose:
 
     The project allows us to utilize GUI to read file inputs and display graphs.
     It also was an opportunity to understand how collaborations in the programming
     industry can be and look like.
 
- Usage Instructions:
+## Usage Instructions:
 
     Run the program from the Run_Program_Here.py
     Use the audio file from the folder or any 
